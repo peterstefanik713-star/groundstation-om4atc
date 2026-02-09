@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Groundstation OM4ATC - Live Satellite Imagery</title>
+    <link href__="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a0f;
+            color: white;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .font-orbitron {
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        #starCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .gradient-overlay {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background: linear-gradient(to bottom right, rgba(88, 28, 135, 0.1), transparent, rgba(8, 145, 178, 0.1));
+            z-index: 1;
+        }
+
+        .gradient-top {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background: linear-gradient(to top, #0a0a0f, transparent, rgba(10, 10, 15, 0.5));
+            z-index: 1;
+        }
+
+        header {
+            position: relative;
+            z-index: 10;
+            padding: 2rem 1rem;
+            max-width: 1280px;
+            margin: 0 auto;
+        }
+
+        .header-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo-img {
+            width: 80px;
+            height: 80px;
+            object-fit: contain;
+        }
+
+        h1 {
+            font-size: 1.875rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            color: white;
+        }
+
+        h1 .highlight {
+            color: rgb(34, 211, 238);
+        }
+
+        .subtitle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: rgb(148, 163, 184);
+            letter-spacing: 0.05em;
+            margin-top: 0.25rem;
+        }
+
+        .status-indicator {
+            width: 0.75rem;
+            height: 0.75rem;
+            background: rgb(16, 185, 129);
+            border-radius: 9999px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .status-controls {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .last-update {
+            text-align: right;
+        }
+
+        .last-update-label {
+            font-size: 0.625rem;
+            color: rgb(100, 116, 139);
+            letter-spacing: 0.1em;
+        }
+
+        .last-update-time {
+            font-size: 0.875rem;
+            color: rgb(203, 213, 225);
+        }
+
+        .refresh-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid rgb(71, 85, 105);
+            color: white;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+            transition: all 0.3s;
+        }
+
+        .refresh-btn:hover {
+            background: rgba(34, 211, 238, 0.1);
+            border-color: rgba(34, 211, 238, 0.5);
+            color: rgb(34, 211, 238);
+        }
+
+        .refresh-btn.spinning .refresh-icon {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .divider {
+            height: 1px;
+            background: linear-gradient(to right, transparent, rgba(34, 211, 238, 0.5), transparent);
+            margin-top: 2rem;
+        }
+
+        main {
+            position: relative;
+            z-index: 10;
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0 1rem 3rem;
+        }
+
+        .satellite-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .video-card {
+            grid-column: 1 / -1;
+            position: relative;
+            background: linear-gradient(to bottom, rgba(15, 23, 42, 0.8), rgba(2, 6, 23, 0.9));
+            border: 1px solid rgba(71, 85, 105, 0.5);
+            border-radius: 1rem;
+            overflow: hidden;
+            transition: all 0.5s;
+            backdrop-filter: blur(8px);
+            margin-top: 2rem;
+        }
+
+        .video-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to top, rgba(34, 211, 238, 0.05), transparent, rgba(168, 85, 247, 0.05));
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+
+        .video-card:hover {
+            border-color: rgba(34, 211, 238, 0.5);
+        }
+
+        .video-card:hover::before {
+            opacity: 1;
+        }
+
+        .video-container {
+            position: relative;
+            width: 100%;
+            padding-top: 56.25%;
+            background: rgb(15, 23, 42);
+            overflow: hidden;
+        }
+
+        .video-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .video-info {
+            padding: 1rem;
+        }
+
+        .video-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .video-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0.75rem;
+            background: rgba(16, 185, 129, 0.2);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 0.5rem;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.625rem;
+            color: rgb(52, 211, 153);
+            letter-spacing: 0.1em;
+        }
+
+        .live-dot {
+            width: 0.5rem;
+            height: 0.5rem;
+            background: rgb(16, 185, 129);
+            border-radius: 9999px;
+            animation: pulse 2s infinite;
+        }
+
+        .video-name {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: white;
+            letter-spacing: 0.1em;
+        }
+
+        .video-description {
+            font-size: 0.875rem;
+            color: rgb(148, 163, 184);
+            margin-top: 0.5rem;
+        }
+
+        .satellite-card {
+            position: relative;
+            background: linear-gradient(to bottom, rgba(15, 23, 42, 0.8), rgba(2, 6, 23, 0.9));
+            border: 1px solid rgba(71, 85, 105, 0.5);
+            border-radius: 1rem;
+            overflow: hidden;
+            transition: all 0.5s;
+            backdrop-filter: blur(8px);
+        }
+
+        .satellite-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to top, rgba(34, 211, 238, 0.05), transparent, rgba(168, 85, 247, 0.05));
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+
+        .satellite-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(34, 211, 238, 0.5);
+        }
+
+        .satellite-card:hover::before {
+            opacity: 1;
+        }
+
+        .satellite-image-container {
+            position: relative;
+            width: 100%;
+            padding-top: 100%;
+            background: rgb(15, 23, 42);
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        .satellite-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: all 0.7s;
+        }
+
+        .satellite-card:hover .satellite-image {
+            transform: scale(1.05);
+        }
+
+        .loading-indicator {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            background: rgb(15, 23, 42);
+        }
+
+        .loading-indicator svg {
+            width: 2rem;
+            height: 2rem;
+            color: rgba(34, 211, 238, 0.5);
+            animation: pulse 2s infinite;
+        }
+
+        .loading-text {
+            font-size: 0.75rem;
+            color: rgb(100, 116, 139);
+        }
+
+        .error-indicator {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            background: rgba(15, 23, 42, 0.8);
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .error-indicator svg {
+            width: 2.5rem;
+            height: 2.5rem;
+            color: rgba(249, 115, 22, 0.7);
+        }
+
+        .error-title {
+            font-size: 0.75rem;
+            color: rgb(148, 163, 184);
+        }
+
+        .error-message {
+            font-size: 0.625rem;
+            color: rgb(71, 85, 105);
+        }
+
+        .expand-icon {
+            position: absolute;
+            top: 0.75rem;
+            right: 0.75rem;
+            padding: 0.5rem;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(34, 211, 238, 0.3);
+            border-radius: 0.5rem;
+            backdrop-filter: blur(4px);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .satellite-card:hover .expand-icon {
+            opacity: 1;
+        }
+
+        .expand-icon svg {
+            width: 1rem;
+            height: 1rem;
+            color: rgb(34, 211, 238);
+        }
+
+        .scan-effect {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            overflow: hidden;
+            opacity: 0.2;
+        }
+
+        .scan-line {
+            position: absolute;
+            inset: 0;
+            height: 200%;
+            background: linear-gradient(to bottom, transparent, rgba(34, 211, 238, 0.1), transparent);
+            animation: scan 3s linear infinite;
+        }
+
+        @keyframes scan {
+            from { transform: translateY(-100%); }
+            to { transform: translateY(100%); }
+        }
+
+        .satellite-info {
+            padding: 1rem;
+        }
+
+        .satellite-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .status-dot {
+            width: 0.5rem;
+            height: 0.5rem;
+            border-radius: 9999px;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.active {
+            background: rgb(16, 185, 129);
+        }
+
+        .status-dot.error {
+            background: rgb(249, 115, 22);
+        }
+
+        .satellite-name {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: white;
+            letter-spacing: 0.1em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .satellite-timestamp {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: rgb(148, 163, 184);
+            margin-bottom: 0.5rem;
+        }
+
+        .satellite-timestamp svg {
+            width: 0.75rem;
+            height: 0.75rem;
+        }
+
+        .satellite-timestamp span {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.625rem;
+            letter-spacing: 0.05em;
+        }
+
+        .satellite-source {
+            font-size: 0.625rem;
+            color: rgb(100, 116, 139);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .bottom-glow {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(to right, transparent, rgba(34, 211, 238, 0.5), transparent);
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+
+        .satellite-card:hover .bottom-glow,
+        .video-card:hover .bottom-glow {
+            opacity: 1;
+        }
+
+        footer {
+            margin-top: 3rem;
+            text-align: center;
+        }
+
+        .footer-divider {
+            height: 1px;
+            background: linear-gradient(to right, transparent, rgb(71, 85, 105), transparent);
+            margin-bottom: 1.5rem;
+        }
+
+        footer p {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            color: rgb(100, 116, 139);
+            letter-spacing: 0.1em;
+            margin-bottom: 0.5rem;
+        }
+
+        footer .credits {
+            font-size: 0.625rem;
+            color: rgb(71, 85, 105);
+            margin-top: 0.5rem;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(12px);
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            position: relative;
+            max-width: 64rem;
+            width: 100%;
+            max-height: 90vh;
+            overflow: hidden;
+            background: linear-gradient(to bottom, rgb(15, 23, 42), rgb(2, 6, 23));
+            border: 1px solid rgba(71, 85, 105, 0.5);
+            border-radius: 1rem;
+        }
+
+        .modal-header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 10;
+            padding: 1rem;
+            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), transparent);
+        }
+
+        .modal-header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-title-section {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .modal-icon {
+            padding: 0.5rem;
+            background: rgba(34, 211, 238, 0.2);
+            border: 1px solid rgba(34, 211, 238, 0.3);
+            border-radius: 0.5rem;
+        }
+
+        .modal-icon svg {
+            width: 1.25rem;
+            height: 1.25rem;
+            color: rgb(34, 211, 238);
+        }
+
+        .modal-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.125rem;
+            color: white;
+            letter-spacing: 0.1em;
+        }
+
+        .modal-subtitle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+            color: rgb(148, 163, 184);
+            margin-top: 0.25rem;
+        }
+
+        .modal-subtitle svg {
+            width: 0.75rem;
+            height: 0.75rem;
+            color: rgb(16, 185, 129);
+            animation: pulse 2s infinite;
+        }
+
+        .modal-close {
+            background: transparent;
+            border: none;
+            color: rgb(148, 163, 184);
+            cursor: pointer;
+            padding: 0.5rem;
+            transition: all 0.3s;
+        }
+
+        .modal-close:hover {
+            color: white;
+            background: rgb(30, 41, 59);
+            border-radius: 0.375rem;
+        }
+
+        .modal-close svg {
+            width: 1.25rem;
+            height: 1.25rem;
+        }
+
+        .modal-image-container {
+            position: relative;
+        }
+
+        .modal-image {
+            width: 100%;
+            height: auto;
+            max-height: 70vh;
+            object-fit: contain;
+        }
+
+        .modal-footer {
+            padding: 1rem;
+            background: rgba(15, 23, 42, 0.8);
+            border-top: 1px solid rgb(30, 41, 59);
+        }
+
+        .modal-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .modal-info-item {
+            font-size: 0.875rem;
+        }
+
+        .modal-info-label {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            color: rgb(100, 116, 139);
+            margin-bottom: 0.25rem;
+        }
+
+        .modal-info-value {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: white;
+        }
+
+        .modal-info-value svg {
+            width: 1rem;
+            height: 1rem;
+            color: rgb(34, 211, 238);
+        }
+
+        .modal-corners {
+            pointer-events: none;
+        }
+
+        .modal-corner {
+            position: absolute;
+            width: 2rem;
+            height: 2rem;
+            border-color: rgba(34, 211, 238, 0.3);
+        }
+
+        .modal-corner.tl {
+            top: 0;
+            left: 0;
+            border-left: 2px solid;
+            border-top: 2px solid;
+            border-top-left-radius: 1rem;
+        }
+
+        .modal-corner.tr {
+            top: 0;
+            right: 0;
+            border-right: 2px solid;
+            border-top: 2px solid;
+            border-top-right-radius: 1rem;
+        }
+
+        .modal-corner.bl {
+            bottom: 0;
+            left: 0;
+            border-left: 2px solid;
+            border-bottom: 2px solid;
+            border-bottom-left-radius: 1rem;
+        }
+
+        .modal-corner.br {
+            bottom: 0;
+            right: 0;
+            border-right: 2px solid;
+            border-bottom: 2px solid;
+            border-bottom-right-radius: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.5rem;
+            }
+            
+            .header-content {
+                gap: 1rem;
+            }
+
+            .status-controls {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .satellite-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .logo-img {
+                width: 60px;
+                height: 60px;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .last-update {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="starCanvas"></canvas>
+    
+    <div class="gradient-overlay"></div>
+    <div class="gradient-top"></div>
+
+    <header>
+        <div class="header-content">
+            <div class="logo-section">
+                <img src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/6985fbeefaac07492e27742c/a2e509471_GroundstationOM4ATClogo.png" alt="Groundstation OM4ATC Logo" class="logo-img">
+                <div>
+                    <h1 class="font-orbitron">Groundstation <span class="highlight">OM4ATC</span></h1>
+                    <div class="subtitle">
+                        <div class="status-indicator"></div>
+                        <span>Live Satellite Imagery</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="status-controls">
+                <div class="last-update">
+                    <div class="last-update-label font-orbitron">LAST UPDATE</div>
+                    <div class="last-update-time font-orbitron" id="lastUpdate">--</div>
+                </div>
+                <button class="refresh-btn" id="refreshBtn" onclick="refreshImages()">
+                    <svg class="refresh-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                        <path d="M21 3v5h-5"/>
+                        <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+                        <path d="M8 16H3v5"/>
+                    </svg>
+                    REFRESH
+                </button>
+            </div>
+        </div>
+        <div class="divider"></div>
+    </header>
+
+    <main>
+        <div class="satellite-grid" id="satelliteGrid"></div>
+
+        <div class="video-card">
+            <div class="video-container">
+                <iframe src="http://om4atc.ddns.net:8889/camera/" allowfullscreen></iframe>
+                <div class="scan-effect">
+                    <div class="scan-line"></div>
+                </div>
+            </div>
+            <div class="video-info">
+                <div class="video-header">
+                    <div class="video-label">
+                        <div class="live-dot"></div>
+                        LIVE
+                    </div>
+                    <h3 class="video-name">OM4ATC ROTATOR CAMERA</h3>
+                </div>
+                <div class="video-description">Real-time video feed from antenna rotator camera system</div>
+            </div>
+            <div class="bottom-glow"></div>
+        </div>
+
+        <footer>
+            <div class="footer-divider"></div>
+            <p>GROUNDSTATION OM4ATC • AMATEUR RADIO SATELLITE GROUNDSTATION</p>
+            <p class="credits">Data sources: EUMETSAT • NOAA/NESDIS • KMA • ROSCOSMOS • ESA • NSMC</p>
+            <p class="credits">Auto-refresh at :01 UTC every hour</p>
+        </footer>
+    </main>
+
+    <div class="modal" id="imageModal" onclick="closeModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <div class="modal-header-content">
+                    <div class="modal-title-section">
+                        <div class="modal-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M13 7 9 3 5 7l4 4"/>
+                                <path d="m17 11 4 4-4 4-4-4"/>
+                                <path d="m8 12 4 4 6-6-4-4Z"/>
+                                <path d="m16 8 3-3"/>
+                                <path d="M9 21a6 6 0 0 0-6-6"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="modal-title" id="modalTitle">--</div>
+                            <div class="modal-subtitle">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/>
+                                    <path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/>
+                                    <circle cx="12" cy="12" r="2"/>
+                                    <path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/>
+                                    <path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/>
+                                </svg>
+                                <span>Live Feed</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="modal-close" onclick="closeModal()">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M18 6 6 18"/>
+                            <path d="m6 6 12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="modal-image-container">
+                <img class="modal-image" id="modalImage" src="" alt="">
+                <div class="scan-effect">
+                    <div class="scan-line"></div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <div class="modal-info-grid">
+                    <div class="modal-info-item">
+                        <div class="modal-info-label">TIMESTAMP (UTC)</div>
+                        <div class="modal-info-value">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                            <span class="font-orbitron" id="modalTimestamp">--</span>
+                        </div>
+                    </div>
+                    <div class="modal-info-item">
+                        <div class="modal-info-label">SOURCE</div>
+                        <div class="modal-info-value" id="modalSource">--</div>
+                    </div>
+                    <div class="modal-info-item">
+                        <div class="modal-info-label">TYPE</div>
+                        <div class="modal-info-value" id="modalType">--</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-corners">
+                <div class="modal-corner tl"></div>
+                <div class="modal-corner tr"></div>
+                <div class="modal-corner bl"></div>
+                <div class="modal-corner br"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SATELLITE_CONFIGS = [
+            {
+                id: 'meteosat-12',
+                name: 'METEOSAT-12',
+                source: 'EUMETSAT/RAMMB/CIRA/CSU',
+                type: 'Full Disk Geocolor • Europe, Africa, Atlantic',
+                imageUrl: 'https://om4atc-server.tailb28193.ts.net/meteosat-12/latest.png'
+            },
+            {
+                id: 'goes-19',
+                name: 'GOES-19',
+                source: 'NOAA/NESDIS',
+                type: 'Full Disk GEOCOLOR • Americas / Western Hemisphere',
+                imageUrl: 'https://cdn.star.nesdis.noaa.gov/GOES19/ABI/FD/GEOCOLOR/latest.jpg'
+            },
+            {
+                id: 'goes-18',
+                name: 'GOES-18',
+                source: 'NOAA/NESDIS',
+                type: 'Full Disk GEOCOLOR • Americas / Western Hemisphere',
+                imageUrl: 'https://cdn.star.nesdis.noaa.gov/GOES18/ABI/FD/GEOCOLOR/latest.jpg'
+            },
+            {
+                id: 'gk-2a',
+                name: 'GK-2A',
+                source: 'KMA/RAMMB/CIRA/CSU',
+                type: 'Full Disk Geocolor • East Asia / Western Pacific',
+                imageUrl: 'https://om4atc-server.tailb28193.ts.net/gk2a/latest.png'
+            },
+            {
+                id: 'fengyun-4b',
+                name: 'FengYun-4B',
+                source: 'NSMC',
+                type: 'Full Disk GCLR • East Asia / Western Pacific',
+                imageUrl: 'https://img.nsmc.org.cn/CLOUDIMAGE/FY4B/AGRI/GCLR/FY4B_DISK_GCLR.JPG'
+            },
+            {
+                id: 'elektro-l4',
+                name: 'ELEKTRO-L4',
+                source: 'ROSCOSMOS FTP',
+                type: 'Visible Light • Geostationary Russia/Asia',
+                imageUrl: 'https://om4atc-server.tailb28193.ts.net/elektro-l4/latest_vis.jpg'
+            },
+            {
+                id: 'elektro-l3',
+                name: 'ELEKTRO-L3',
+                source: 'ROSCOSMOS FTP',
+                type: 'Visible Light • Geostationary Russia/Asia',
+                imageUrl: 'https://om4atc-server.tailb28193.ts.net/elektro-l3/latest_vis.jpg'
+            },
+            {
+                id: 'arktika-m1',
+                name: 'ARKTIKA-M1',
+                source: 'ROSCOSMOS FTP',
+                type: 'Visible Light • Polar Region Monitoring',
+                imageUrl: 'https://om4atc-server.tailb28193.ts.net/arktika-m1/latest_vis.jpg'
+            },
+            {
+                id: 'arktika-m2',
+                name: 'ARKTIKA-M2',
+                source: 'ROSCOSMOS FTP',
+                type: 'Visible Light • Polar Region Monitoring',
+                imageUrl: 'https://om4atc-server.tailb28193.ts.net/arktika-m2/latest_vis.jpg'
+            },
+            {
+                id: 'proba-2',
+                name: 'PROBA-2 SWAP',
+                source: 'ESA/Helioviewer API',
+                type: 'Solar EUV • Corona, Flares, Space Weather',
+                imageUrl: 'https://om4atc-server.tailb28193.ts.net/proba-2/latest.png'
+            },
+            {
+                id: 'meteor-m2-3-vis',
+                name: 'Meteor M2-3 VIS',
+                source: 'GROUNDSTATION OM4ATC',
+                type: 'Visible Light • Polar Orbiting Earth Observation',
+                imageUrl: 'https://atccore.tailb28193.ts.net/latest_meteor-m2-3_vis.png'
+            },
+            {
+                id: 'meteor-m2-3-ir',
+                name: 'Meteor M2-3 IR',
+                source: 'GROUNDSTATION OM4ATC',
+                type: 'Infrared • Polar Orbiting Thermal Imaging',
+                imageUrl: 'https://atccore.tailb28193.ts.net/latest_meteor-m2-3_ir.png'
+            },
+            {
+                id: 'meteor-m2-4-vis',
+                name: 'Meteor M2-4 VIS',
+                source: 'GROUNDSTATION OM4ATC',
+                type: 'Visible Light • Polar Orbiting Earth Observation',
+                imageUrl: 'https://atccore.tailb28193.ts.net/latest_meteor-m2-4_vis.png'
+            },
+            {
+                id: 'meteor-m2-4-ir',
+                name: 'Meteor M2-4 IR',
+                source: 'GROUNDSTATION OM4ATC',
+                type: 'Infrared • Polar Orbiting Thermal Imaging',
+                imageUrl: 'https://atccore.tailb28193.ts.net/latest_meteor-m2-4_ir.png'
+            },
+            {
+                id: 'metop-b-vis',
+                name: 'MetOp-B VIS',
+                source: 'GROUNDSTATION OM4ATC',
+                type: 'Visible Light • Polar Orbiting Global Coverage',
+                imageUrl: 'https://atccore.tailb28193.ts.net/latest_metop-b_vis.png'
+            },
+            {
+                id: 'metop-b-ir',
+                name: 'MetOp-B IR',
+                source: 'GROUNDSTATION OM4ATC',
+                type: 'Infrared • Polar Orbiting Thermal Imaging',
+                imageUrl: 'https://atccore.tailb28193.ts.net/latest_metop-b_ir.png'
+            },
+            {
+                id: 'metop-c-vis',
+                name: 'MetOp-C VIS',
+                source: 'GROUNDSTATION OM4ATC',
+                type: 'Visible Light • Polar Orbiting Global Coverage',
+                imageUrl: 'https://atccore.tailb28193.ts.net/latest_metop-c_vis.png'
+            },
+            {
+                id: 'metop-c-ir',
+                name: 'MetOp-C IR',
+                source: 'GROUNDSTATION OM4ATC',
+                type: 'Infrared • Polar Orbiting Thermal Imaging',
+                imageUrl: 'https://atccore.tailb28193.ts.net/latest_metop-c_ir.png'
+            }
+        ];
+
+        function initStarField() {
+            const canvas = document.getElementById('starCanvas');
+            const ctx = canvas.getContext('2d');
+            let animationId;
+
+            const resize = () => {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            };
+
+            resize();
+            window.addEventListener('resize', resize);
+
+            const stars = Array.from({ length: 200 }, () => ({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                size: Math.random() * 1.5 + 0.5,
+                opacity: Math.random(),
+                speed: Math.random() * 0.5 + 0.1,
+                twinkleSpeed: Math.random() * 0.02 + 0.005
+            }));
+
+            const animate = () => {
+                ctx.fillStyle = 'rgba(10, 10, 15, 0.1)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                stars.forEach(star => {
+                    star.opacity += star.twinkleSpeed;
+                    if (star.opacity > 1 || star.opacity < 0.2) {
+                        star.twinkleSpeed *= -1;
+                    }
+
+                    const gradient = ctx.createRadialGradient(
+                        star.x, star.y, 0,
+                        star.x, star.y, star.size * 2
+                    );
+                    gradient.addColorStop(0, `rgba(255, 255, 255, ${star.opacity})`);
+                    gradient.addColorStop(0.5, `rgba(200, 220, 255, ${star.opacity * 0.5})`);
+                    gradient.addColorStop(1, 'transparent');
+
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.arc(star.x, star.y, star.size * 2, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+
+                animationId = requestAnimationFrame(animate);
+            };
+
+            ctx.fillStyle = '#0a0a0f';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            animate();
+
+            return () => {
+                window.removeEventListener('resize', resize);
+                cancelAnimationFrame(animationId);
+            };
+        }
+
+        function formatTimestamp() {
+            const now = new Date();
+            return now.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+        }
+
+        const satelliteStates = {};
+
+        function createSatelliteCard(satellite, timestamp) {
+            const state = satelliteStates[satellite.id] || { loaded: false, error: false, retryCount: 0 };
+            const imageUrl = `${satellite.imageUrl}?t=${timestamp}`;
+
+            return `
+                <div class="satellite-card">
+                    <div class="satellite-image-container" onclick="openModal('${satellite.id}')">
+                        ${!state.loaded ? `
+                            <div class="loading-indicator">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M13 7 9 3 5 7l4 4"/>
+                                    <path d="m17 11 4 4-4 4-4-4"/>
+                                    <path d="m8 12 4 4 6-6-4-4Z"/>
+                                    <path d="m16 8 3-3"/>
+                                    <path d="M9 21a6 6 0 0 0-6-6"/>
+                                </svg>
+                                <span class="loading-text font-orbitron">Loading...</span>
+                            </div>
+                        ` : ''}
+                        ${state.error ? `
+                            <div class="error-indicator">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <line x1="12" x2="12" y1="8" y2="12"/>
+                                    <line x1="12" x2="12.01" y1="16" y2="16"/>
+                                </svg>
+                                <span class="error-title font-orbitron">Signal Lost</span>
+                                <span class="error-message">Awaiting next refresh...</span>
+                            </div>
+                        ` : `
+                            <img 
+                                class="satellite-image" 
+                                src="${imageUrl}" 
+                                alt="${satellite.name}"
+                                style="opacity: ${state.loaded ? '1' : '0'}"
+                                onload="handleImageLoad('${satellite.id}')"
+                                onerror="handleImageError('${satellite.id}')"
+                            />
+                        `}
+                        ${!state.error && state.loaded ? `
+                            <div class="expand-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="m21 21-6-6m6 6v-4.8m0 4.8h-4.8"/>
+                                    <path d="M3 16.2V21m0 0h4.8M3 21l6-6"/>
+                                    <path d="M21 7.8V3m0 0h-4.8M21 3l-6 6"/>
+                                    <path d="M3 7.8V3m0 0h4.8M3 3l6 6"/>
+                                </svg>
+                            </div>
+                        ` : ''}
+                        <div class="scan-effect">
+                            <div class="scan-line"></div>
+                        </div>
+                    </div>
+                    <div class="satellite-info">
+                        <div class="satellite-header">
+                            <div class="status-dot ${state.error ? 'error' : 'active'}"></div>
+                            <div class="satellite-name">${satellite.name}</div>
+                        </div>
+                        <div class="satellite-timestamp">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                            <span>${formatTimestamp()}</span>
+                        </div>
+                        <div class="satellite-source">${satellite.source}</div>
+                    </div>
+                    <div class="bottom-glow"></div>
+                </div>
+            `;
+        }
+
+        function handleImageLoad(satelliteId) {
+            satelliteStates[satelliteId] = { loaded: true, error: false, retryCount: 0 };
+        }
+
+        function handleImageError(satelliteId) {
+            const state = satelliteStates[satelliteId] || { loaded: false, error: false, retryCount: 0 };
+            
+            if (state.retryCount < 1) {
+                state.retryCount++;
+                satelliteStates[satelliteId] = state;
+                const timestamp = Date.now();
+                const satellite = SATELLITE_CONFIGS.find(s => s.id === satelliteId);
+                if (satellite) {
+                    const img = document.querySelector(`[alt="${satellite.name}"]`);
+                    if (img) {
+                        img.src = `${satellite.imageUrl}?retry=${timestamp}`;
+                    }
+                }
+            } else {
+                satelliteStates[satelliteId] = { loaded: true, error: true, retryCount: state.retryCount };
+                renderSatellites();
+            }
+        }
+
+        function renderSatellites() {
+            const grid = document.getElementById('satelliteGrid');
+            const timestamp = Date.now();
+            
+            grid.innerHTML = SATELLITE_CONFIGS.map(sat => createSatelliteCard(sat, timestamp)).join('');
+            document.getElementById('lastUpdate').textContent = formatTimestamp();
+        }
+
+        function refreshImages() {
+            const btn = document.getElementById('refreshBtn');
+            btn.classList.add('spinning');
+            
+            SATELLITE_CONFIGS.forEach(sat => {
+                satelliteStates[sat.id] = { loaded: false, error: false, retryCount: 0 };
+            });
+            
+            renderSatellites();
+            
+            setTimeout(() => {
+                btn.classList.remove('spinning');
+            }, 1000);
+        }
+
+        function openModal(satelliteId) {
+            const satellite = SATELLITE_CONFIGS.find(s => s.id === satelliteId);
+            const state = satelliteStates[satelliteId];
+            
+            if (!satellite || state?.error) return;
+            
+            const timestamp = Date.now();
+            document.getElementById('modalTitle').textContent = satellite.name;
+            document.getElementById('modalTimestamp').textContent = formatTimestamp();
+            document.getElementById('modalSource').textContent = satellite.source;
+            document.getElementById('modalType').textContent = satellite.type;
+            document.getElementById('modalImage').src = `${satellite.imageUrl}?t=${timestamp}`;
+            document.getElementById('imageModal').classList.add('active');
+        }
+
+        function closeModal(event) {
+            if (!event || event.target.id === 'imageModal') {
+                document.getElementById('imageModal').classList.remove('active');
+            }
+        }
+
+        function scheduleRefresh() {
+            const now = new Date();
+            const nextRefresh = new Date(now);
+            nextRefresh.setUTCMinutes(1, 0, 0);
+            
+            if (now.getUTCMinutes() >= 1) {
+                nextRefresh.setUTCHours(nextRefresh.getUTCHours() + 1);
+            }
+            
+            const msUntilRefresh = nextRefresh.getTime() - now.getTime();
+            
+            setTimeout(() => {
+                refreshImages();
+                setInterval(refreshImages, 3600000);
+            }, msUntilRefresh);
+        }
+
+        initStarField();
+        renderSatellites();
+        scheduleRefresh();
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+        });
+    </script>
+</body>
+</html>
