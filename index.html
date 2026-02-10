@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Groundstation OM4ATC - Satellite Imagery</title>
+  <link href__="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0a0f;
+      color: white;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .font-orbitron {
+      font-family: 'Orbitron', sans-serif;
+    }
+
+    /* Star field background */
+    .star-field {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .star {
+      position: absolute;
+      background: white;
+      border-radius: 50%;
+      animation: twinkle 3s infinite;
+    }
+
+    @keyframes twinkle {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; }
+    }
+
+    /* Gradient overlays */
+    .gradient-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(to bottom right, rgba(88, 28, 135, 0.1), transparent, rgba(8, 145, 178, 0.1));
+    }
+
+    .gradient-top {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(to top, #0a0a0f, transparent, rgba(10, 10, 15, 0.5));
+    }
+
+    /* Header */
+    header {
+      position: relative;
+      z-index: 10;
+      padding: 2rem 1rem;
+      text-align: center;
+      border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+      background: rgba(10, 10, 15, 0.8);
+      backdrop-filter: blur(10px);
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      background: linear-gradient(to right, #60a5fa, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      font-size: 0.875rem;
+      color: #94a3b8;
+      letter-spacing: 0.05em;
+    }
+
+    .last-update {
+      margin-top: 1rem;
+      font-size: 0.75rem;
+      color: #64748b;
+      letter-spacing: 0.1em;
+    }
+
+    .refresh-btn {
+      margin-top: 1rem;
+      padding: 0.5rem 1.5rem;
+      background: rgba(59, 130, 246, 0.2);
+      border: 1px solid #3b82f6;
+      color: #60a5fa;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.875rem;
+      letter-spacing: 0.05em;
+      transition: all 0.3s;
+    }
+
+    .refresh-btn:hover {
+      background: rgba(59, 130, 246, 0.3);
+      transform: translateY(-2px);
+    }
+
+    /* Main content */
+    main {
+      position: relative;
+      z-index: 10;
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 0 1rem 3rem;
+    }
+
+    /* Satellite grid */
+    .satellite-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-top: 2rem;
+    }
+
+    /* Satellite card */
+    .satellite-card {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(71, 85, 105, 0.5);
+      border-radius: 0.75rem;
+      overflow: hidden;
+      transition: all 0.3s;
+      backdrop-filter: blur(10px);
+    }
+
+    .satellite-card:hover {
+      transform: translateY(-4px);
+      border-color: #3b82f6;
+      box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+    }
+
+    .satellite-image-container {
+      position: relative;
+      width: 100%;
+      padding-top: 100%;
+      background: #1e293b;
+      overflow: hidden;
+      cursor: pointer;
+    }
+
+    .satellite-image {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .satellite-info {
+      padding: 1rem;
+    }
+
+    .satellite-name {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: #60a5fa;
+      margin-bottom: 0.25rem;
+    }
+
+    .satellite-source {
+      font-size: 0.75rem;
+      color: #64748b;
+      margin-bottom: 0.5rem;
+    }
+
+    .satellite-type {
+      font-size: 0.875rem;
+      color: #94a3b8;
+      line-height: 1.5;
+    }
+
+    /* Footer */
+    footer {
+      margin-top: 3rem;
+      text-align: center;
+      padding-top: 1.5rem;
+      border-top: 1px solid rgba(71, 85, 105, 0.3);
+    }
+
+    footer p {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.75rem;
+      color: #64748b;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.5rem;
+    }
+
+    footer .credits {
+      font-size: 0.625rem;
+      color: #475569;
+      margin-top: 0.5rem;
+    }
+
+    /* Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.9);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      max-width: 90%;
+      max-height: 90%;
+    }
+
+    .modal img {
+      max-width: 100%;
+      max-height: 90vh;
+      border-radius: 0.5rem;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: white;
+      font-size: 2rem;
+      width: 3rem;
+      height: 3rem;
+      border-radius: 50%;
+      cursor: pointer;
+      line-height: 1;
+    }
+
+    @media (max-width: 640px) {
+      h1 {
+        font-size: 1.75rem;
+      }
+
+      .satellite-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Star field -->
+  <div class="star-field" id="starField"></div>
+
+  <!-- Gradient overlays -->
+  <div class="gradient-overlay"></div>
+  <div class="gradient-top"></div>
+
+  <!-- Header -->
+  <header>
+    <h1 class="font-orbitron">GROUNDSTATION OM4ATC</h1>
+    <p class="subtitle font-orbitron">REAL-TIME SATELLITE IMAGERY DASHBOARD</p>
+    <p class="last-update font-orbitron" id="lastUpdate">LAST UPDATE: --</p>
+    <button class="refresh-btn" onclick="refreshImages()">↻ REFRESH ALL</button>
+  </header>
+
+  <!-- Main content -->
+  <main>
+    <div class="satellite-grid" id="satelliteGrid"></div>
+
+    <!-- Footer -->
+    <footer>
+      <p>GROUNDSTATION OM4ATC • AMATEUR RADIO SATELLITE GROUNDSTATION</p>
+      <p class="credits">Data sources: EUMETSAT • NOAA/NESDIS • KMA • ROSCOSMOS • ESA</p>
+      <p class="credits">Auto-refresh at :01 UTC every hour</p>
+    </footer>
+  </main>
+
+  <!-- Image modal -->
+  <div class="modal" id="imageModal" onclick="closeModal()">
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <div class="modal-content">
+      <img id="modalImage" src="" alt="">
+    </div>
+  </div>
+
+  <script>
+    // Satellite configurations
+    const satellites = [
+      { id: 'meteosat-12', name: 'METEOSAT-12', source: 'EUMETSAT/RAMMB/CIRA/CSU', type: 'Full Disk Geocolor • Europe, Africa, Atlantic', imageUrl: 'https://om4atc-server.tailb28193.ts.net/meteosat-12/latest.png' },
+      { id: 'goes-19', name: 'GOES-19', source: 'NOAA/NESDIS', type: 'Full Disk GEOCOLOR • Americas / Western Hemisphere', imageUrl: 'https://cdn.star.nesdis.noaa.gov/GOES19/ABI/FD/GEOCOLOR/latest.jpg' },
+      { id: 'goes-18', name: 'GOES-18', source: 'NOAA/NESDIS', type: 'Full Disk GEOCOLOR • Americas / Western Hemisphere', imageUrl: 'https://cdn.star.nesdis.noaa.gov/GOES18/ABI/FD/GEOCOLOR/latest.jpg' },
+      { id: 'gk-2a', name: 'GK-2A', source: 'KMA/RAMMB/CIRA/CSU', type: 'Full Disk Geocolor • East Asia / Western Pacific', imageUrl: 'https://om4atc-server.tailb28193.ts.net/gk2a/latest.png' },
+      { id: 'elektro-l4', name: 'ELEKTRO-L4', source: 'ROSCOSMOS FTP', type: 'Visible Light • Geostationary Russia/Asia', imageUrl: 'https://om4atc-server.tailb28193.ts.net/elektro-l4/latest_vis.jpg' },
+      { id: 'elektro-l3', name: 'ELEKTRO-L3', source: 'ROSCOSMOS FTP', type: 'Visible Light • Geostationary Russia/Asia', imageUrl: 'https://om4atc-server.tailb28193.ts.net/elektro-l3/latest_vis.jpg' },
+      { id: 'arktika-m1', name: 'ARKTIKA-M1', source: 'ROSCOSMOS FTP', type: 'Visible Light • Polar Region Monitoring', imageUrl: 'https://om4atc-server.tailb28193.ts.net/arktika-m1/latest_vis.jpg' },
+      { id: 'arktika-m2', name: 'ARKTIKA-M2', source: 'ROSCOSMOS FTP', type: 'Visible Light • Polar Region Monitoring', imageUrl: 'https://om4atc-server.tailb28193.ts.net/arktika-m2/latest_vis.jpg' },
+      { id: 'proba-2', name: 'PROBA-2 SWAP', source: 'ESA/Helioviewer API', type: 'Solar EUV • Corona, Flares, Space Weather', imageUrl: 'https://om4atc-server.tailb28193.ts.net/proba-2/latest.png' },
+      { id: 'meteor-m2-3-vis', name: 'Meteor M2-3 VIS', source: 'GROUNDSTATION OM4ATC', type: 'Visible Light • Polar Orbiting Earth Observation', imageUrl: 'https://atccore.tailb28193.ts.net/latest_meteor-m2-3_vis.png' },
+      { id: 'meteor-m2-3-ir', name: 'Meteor M2-3 IR', source: 'GROUNDSTATION OM4ATC', type: 'Infrared • Polar Orbiting Thermal Imaging', imageUrl: 'https://atccore.tailb28193.ts.net/latest_meteor-m2-3_ir.png' },
+      { id: 'meteor-m2-4-vis', name: 'Meteor M2-4 VIS', source: 'GROUNDSTATION OM4ATC', type: 'Visible Light • Polar Orbiting Earth Observation', imageUrl: 'https://atccore.tailb28193.ts.net/latest_meteor-m2-4_vis.png' },
+      { id: 'meteor-m2-4-ir', name: 'Meteor M2-4 IR', source: 'GROUNDSTATION OM4ATC', type: 'Infrared • Polar Orbiting Thermal Imaging', imageUrl: 'https://atccore.tailb28193.ts.net/latest_meteor-m2-4_ir.png' },
+      { id: 'metop-b-vis', name: 'MetOp-B VIS', source: 'GROUNDSTATION OM4ATC', type: 'Visible Light • Polar Orbiting Global Coverage', imageUrl: 'https://atccore.tailb28193.ts.net/latest_metop-b_vis.png' },
+      { id: 'metop-b-ir', name: 'MetOp-B IR', source: 'GROUNDSTATION OM4ATC', type: 'Infrared • Polar Orbiting Thermal Imaging', imageUrl: 'https://atccore.tailb28193.ts.net/latest_metop-b_ir.png' },
+      { id: 'metop-c-vis', name: 'MetOp-C VIS', source: 'GROUNDSTATION OM4ATC', type: 'Visible Light • Polar Orbiting Global Coverage', imageUrl: 'https://atccore.tailb28193.ts.net/latest_metop-c_vis.png' },
+      { id: 'metop-c-ir', name: 'MetOp-C IR', source: 'GROUNDSTATION OM4ATC', type: 'Infrared • Polar Orbiting Thermal Imaging', imageUrl: 'https://atccore.tailb28193.ts.net/latest_metop-c_ir.png' }
+    ];
+
+    // Create star field
+    function createStarField() {
+      const starField = document.getElementById('starField');
+      for (let i = 0; i < 200; i++) {
+        const star = document.createElement('div');
+        star.className = 'star';
+        star.style.left = Math.random() * 100 + '%';
+        star.style.top = Math.random() * 100 + '%';
+        star.style.width = star.style.height = (Math.random() * 2 + 1) + 'px';
+        star.style.animationDelay = Math.random() * 3 + 's';
+        starField.appendChild(star);
+      }
+    }
+
+    // Format timestamp
+    function formatTimestamp() {
+      const now = new Date();
+      return now.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+    }
+
+    // Render satellites
+    function renderSatellites() {
+      const grid = document.getElementById('satelliteGrid');
+      const timestamp = Date.now();
+      grid.innerHTML = satellites.map(sat => 
+        `<div class="satellite-card">
+          <div class="satellite-image-container" onclick="openModal('${sat.imageUrl}?t=${timestamp}')">
+            <img class="satellite-image" src="${sat.imageUrl}?t=${timestamp}" alt="${sat.name}" loading="lazy">
+          </div>
+          <div class="satellite-info">
+            <div class="satellite-name">${sat.name}</div>
+            <div class="satellite-source">${sat.source}</div>
+            <div class="satellite-type">${sat.type}</div>
+          </div>
+        </div>`
+      ).join('');
+      document.getElementById('lastUpdate').textContent = 'LAST UPDATE: ' + formatTimestamp();
+    }
+
+    // Refresh images
+    function refreshImages() {
+      renderSatellites();
+    }
+
+    // Modal functions
+    function openModal(imageUrl) {
+      document.getElementById('modalImage').src = imageUrl;
+      document.getElementById('imageModal').classList.add('active');
+    }
+
+    function closeModal() {
+      document.getElementById('imageModal').classList.remove('active');
+    }
+
+    // Initialize
+    createStarField();
+    renderSatellites();
+
+    // Auto-refresh at :01 UTC every hour
+    function scheduleRefresh() {
+      const now = new Date();
+      const nextRefresh = new Date(now);
+      nextRefresh.setUTCMinutes(1, 0, 0);
+      if (now.getUTCMinutes() >= 1) {
+        nextRefresh.setUTCHours(nextRefresh.getUTCHours() + 1);
+      }
+      const msUntilRefresh = nextRefresh.getTime() - now.getTime();
+      setTimeout(() => {
+        refreshImages();
+        setInterval(refreshImages, 3600000);
+      }, msUntilRefresh);
+    }
+
+    scheduleRefresh();
+  </script>
+</body>
+</html>
