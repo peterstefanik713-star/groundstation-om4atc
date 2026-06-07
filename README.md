@@ -7,8 +7,11 @@ This repository keeps the Netlify URL while serving the real OM4ATC Groundstatio
 Netlify uses the root `_redirects` file. The current rule proxies every Netlify path to the matching path under `/groundstation-om4atc`:
 
 ```text
+/groundstation-om4atc/* https://om4atc-server.tailb28193.ts.net/groundstation-om4atc/:splat 200!
 /* https://om4atc-server.tailb28193.ts.net/groundstation-om4atc/:splat 200!
 ```
+
+The first rule handles the real site's injected `/groundstation-om4atc/` base path without duplicating it. The catch-all rule proxies normal Netlify paths.
 
 - A rule ending in `200!` is a forced rewrite/proxy. It keeps the Netlify URL visible and overrides the fallback `index.html`.
 - A rule ending in `302` is a temporary visible redirect. It changes the browser URL to the target.
